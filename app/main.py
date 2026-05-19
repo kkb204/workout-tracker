@@ -1,7 +1,8 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
 from app.database import engine, SessionLocal
+from sqlalchemy.orm import Session
 from app import models
-from app import schemas
+from app.schemas import WorkoutCreate, WorkoutResponse
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -20,9 +21,31 @@ def root():
 
 @app.post("/workouts")
 def create_workout(workout: WorkoutCreate, db: Session = Depends(get_db)):
-    # logic here
+    db_workout = models.Workout(**workout.model_dump())
+    db.add(db_workout)
+    db.commit()
+    db.refresh(db_workout)
+    return db_workout
 
 
 @app.get("/workouts")
-def get_workout(workout: WorkoutResponse, db: Session = Depends(get_db)):
-    # logic here
+def get_all_workouts(db: Session = Depends(get_db)):
+    return db.query(models.Workout).all()
+
+
+@app.get("/workouts/{id}")
+def get_workout(id: int, db: Session = Depends(get_db)):
+    workout = db.query(models.Workout).filter(models.Workout.id == id).first()
+    if not workout:
+        raise HTTPException(status_code=404, detail="Workout not found")
+    return workout
+
+@app.delete("/workouts/{id}")
+def delete_workout(id: int, db: Session = Depends(get_db)):
+    db_workout = db.query(models.Workout).filter(models.Workout.id == id).first()
+    if not db_workout:
+        raise HTTPException(status_code=404, detail="Workout not found")
+    db.delete(db_workout)
+    db.commit()
+    return {"message": "Workout deleted"}
+
